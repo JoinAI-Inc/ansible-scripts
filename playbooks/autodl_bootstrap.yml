@@ -5,7 +5,7 @@
   roles:
       - role: cleanup
         vars:
-            cleanup_dir: /root/ComfyUI/input/20251212
+            cleanup_dir: /root/ComfyUI/input/20251215
             cleanup_age: 1h
             cleanup_file_type: any
             cleanup_remove_empty_dirs: true
