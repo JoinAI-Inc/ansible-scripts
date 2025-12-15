@@ -1,60 +1,32 @@
 - name: Safety checks
   assert:
-    that:
-      - cleanup_dir is string
-      - cleanup_dir | length > 1
-      - cleanup_dir.startswith('/')
-      - (not cleanup_deny_root) or (cleanup_dir != '/')
-    fail_msg: "Refuse to cleanup unsafe path: {{ cleanup_dir }}"
+      that:
+          - cleanup_dirs is iterable
+          - cleanup_dirs | length > 0
+          - item.startswith('/')
+          - (not cleanup_deny_root) or (item != '/')
+      fail_msg: "Refuse to cleanup unsafe path: {{ item }}"
+  loop: "{{ cleanup_dirs }}"
 
-- name: Ensure cleanup dir exists (optional)
+- name: Check cleanup dir exists
   stat:
-    path: "{{ cleanup_dir }}"
-  register: cleanup_dir_stat
+      path: "{{ item }}"
+  register: cleanup_dir_stats
+  loop: "{{ cleanup_dirs }}"
 
-- name: Skip if cleanup dir does not exist
-  debug:
-    msg: "Skip cleanup because dir does not exist: {{ cleanup_dir }}"
-  when: not cleanup_dir_stat.stat.exists
-
-- name: Find old items
+- name: Find old files
   find:
-    paths: "{{ cleanup_dir }}"
-    age: "{{ cleanup_age }}"
-    recurse: true
-    file_type: "{{ cleanup_file_type }}"
+      paths: "{{ item.stat.path }}"
+      age: "{{ cleanup_age }}"
+      recurse: true
+      file_type: "{{ cleanup_file_type }}"
   register: cleanup_found
-  when: cleanup_dir_stat.stat.exists
+  when: item.stat.exists
+  loop: "{{ cleanup_dir_stats.results }}"
 
-- name: Remove old items
+- name: Remove old files
   file:
-    path: "{{ item.path }}"
-    state: absent
-  loop: "{{ cleanup_found.files }}"
-  when:
-    - cleanup_dir_stat.stat.exists
-    - cleanup_found.matched | default(0) | int > 0
-
-# 可选：仅在“只删文件”时，额外清理空目录（避免目录结构越积越深）
-- name: Find empty directories (after file cleanup)
-  find:
-    paths: "{{ cleanup_dir }}"
-    recurse: true
-    file_type: directory
-    # 注意：这里 age 不限制，只删空目录
-  register: cleanup_dirs
-  when:
-    - cleanup_dir_stat.stat.exists
-    - cleanup_remove_empty_dirs | bool
-    - cleanup_file_type == 'file'
-
-- name: Remove empty directories
-  file:
-    path: "{{ item.path }}"
-    state: absent
-  loop: "{{ cleanup_dirs.files | sort(attribute='path', reverse=true) }}"
-  when:
-    - cleanup_dir_stat.stat.exists
-    - cleanup_remove_empty_dirs | bool
-    - cleanup_file_type == 'file'
-    - (item.path != cleanup_dir)  # 不删顶层目录本身
+      path: "{{ item.1.path }}"
+      state: absent
+  loop: "{{ cleanup_found.results | subelements('files') }}"
+  when: cleanup_found is defined

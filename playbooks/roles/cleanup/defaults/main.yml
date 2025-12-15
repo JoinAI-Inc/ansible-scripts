@@ -1,5 +1,7 @@
 # 要清理的目录（必须是绝对路径）
-cleanup_dir: /data/cache
+cleanup_dirs:
+    - /root/ComfyUI/input
+    - /root/ComfyUI/output
 
 # 多久以前：支持 1h / 30m / 2d 这类写法（find 模块的 age）
 cleanup_age: 1h
