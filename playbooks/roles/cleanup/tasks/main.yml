@@ -3,6 +3,7 @@
       that:
           - cleanup_dirs is iterable
           - cleanup_dirs | length > 0
+          - item is string
           - item.startswith('/')
           - (not cleanup_deny_root) or (item != '/')
       fail_msg: "Refuse to cleanup unsafe path: {{ item }}"
@@ -14,19 +15,32 @@
   register: cleanup_dir_stats
   loop: "{{ cleanup_dirs }}"
 
-- name: Find old files
-  find:
-      paths: "{{ item.stat.path }}"
-      age: "{{ cleanup_age }}"
-      recurse: true
-      file_type: "{{ cleanup_file_type }}"
-  register: cleanup_found
+- name: Cleanup old files on remote (scalable; no large file list back to controller)
+  shell: |
+      set -euo pipefail
+      d="{{ item.stat.path }}"
+      # 统计将要删除的文件数（用于验证）
+      cnt="$(find "$d" -type f -mmin +{{ cleanup_age_minutes }} 2>/dev/null | wc -l || true)"
+      echo "dir=$d age_mmin=+{{ cleanup_age_minutes }} matched=$cnt"
+
+      # check 模式：只统计，不删除
+      if [ "{{ ansible_check_mode | default(false) }}" = "True" ]; then
+        exit 0
+      fi
+
+      # 真删：在远端一次性 delete，避免回传巨量列表导致 worker 崩溃
+      find "$d" -type f -mmin +{{ cleanup_age_minutes }} -delete 2>/dev/null || true
+
+      # 可选：清理空目录（只删空的，安全）
+      if [ "{{ cleanup_remove_empty_dirs | default(false) }}" = "True" ]; then
+        find "$d" -type d -empty -delete 2>/dev/null || true
+      fi
+  args:
+      executable: /bin/bash
   when: item.stat.exists
   loop: "{{ cleanup_dir_stats.results }}"
-
-- name: Remove old files
-  file:
-      path: "{{ item.1.path }}"
-      state: absent
-  loop: "{{ cleanup_found.results | subelements('files') }}"
-  when: cleanup_found is defined
+  register: cleanup_run
+  changed_when: >
+      (not ansible_check_mode | default(false)) and
+      ('matched=' in cleanup_run.stdout) and
+      (cleanup_run.stdout is not regex('matched=0'))

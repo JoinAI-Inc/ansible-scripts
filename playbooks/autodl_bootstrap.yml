@@ -8,3 +8,5 @@
             cleanup_dirs:
                 - /root/ComfyUI/input
                 - /root/ComfyUI/output
+            cleanup_age_minutes: 60
+            cleanup_remove_empty_dirs: true
