@@ -1,0 +1,15 @@
+# 要清理的目录（必须是绝对路径）
+cleanup_dir: /data/cache
+
+# 多久以前：支持 1h / 30m / 2d 这类写法（find 模块的 age）
+cleanup_age: 1h
+
+# 清理类型：file / directory / any
+# 一般建议先用 file，避免误删目录导致连带删除新文件
+cleanup_file_type: file
+
+# 是否删除空目录（可选；当 cleanup_file_type=file 时可配合使用）
+cleanup_remove_empty_dirs: true
+
+# 安全保护：禁止清理根目录
+cleanup_deny_root: true
